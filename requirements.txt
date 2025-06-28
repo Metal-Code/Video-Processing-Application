@@ -3,15 +3,13 @@ google-cloud-storage
 google-cloud-firestore
 ffmpeg-python
 opencv-python-headless
-torch
+torch --extra-index-url https://download.pytorch.org/whl/cpu
 Pillow
 git+https://github.com/openai/whisper.git
 moviepy
 streamlit-drawable-canvas
 google-generativeai
 numpy
-transformers
-tensorflow
 matplotlib
 scikit-learn
 librosa
