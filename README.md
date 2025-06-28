@@ -35,8 +35,8 @@ Ensure you have Python 3.8 or higher installed on your system.
 
 ### Repository Setup
 ```bash
-git clone https://github.com/rachitpatekar7/-Smart-Video-Compression-and-Editing-Suite.git
-cd Smart-Video-Compression-and-Editing-Suite
+git clone https://github.com/Metal-Code/Video-Processing-Application.git
+cd Video-Processing-Application
 ```
 
 ### Dependency Installation
