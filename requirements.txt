@@ -1,7 +1,9 @@
 streamlit
-ffmpeg-python
 opencv-python-headless
 Pillow
 numpy
 moviepy
 google-generativeai
+openai-whisper
+imageio
+imageio-ffmpeg
