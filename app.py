@@ -1,22 +1,30 @@
 import streamlit as st
 import os
 import tempfile
-import subprocess
-import whisper
 import cv2
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image
 import numpy as np
-import base64
-import moviepy.editor as mp
-import google.generativeai as genai
-from compressor import compress_video
 
-# Remove tensorflow imports that are causing issues
-# from tensorflow.keras.models import load_model
-# from tensorflow.keras.preprocessing.image import img_to_array
-# from tensorflow.keras.applications.vgg19 import VGG19, preprocess_input
-# from tensorflow.keras.models import Model
-# import tensorflow as tf
+# Try importing optional dependencies
+try:
+    import moviepy.editor as mp
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+    st.warning("MoviePy not available. Some features will be disabled.")
+
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+
+try:
+    from compressor import compress_video
+    COMPRESSOR_AVAILABLE = True
+except ImportError:
+    COMPRESSOR_AVAILABLE = False
+    st.warning("Compressor module not available.")
 
 st.markdown(
     """
@@ -76,26 +84,24 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("🎥 Smart Video Compression and Editing Suite")
-st.markdown("Style, analyze, and understand your video – all in one place.")
+st.title("🎥 Smart Video Processing Suite")
+st.markdown("Process and analyze your videos with ease.")
 
 # Initialize Gemini API if key is available
-if "GEMINI_API_KEY" in st.secrets:
+if GENAI_AVAILABLE and "GEMINI_API_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     except Exception as e:
         st.warning("Gemini API configuration failed. AI features may not work.")
 
-tools = [
-    "Compress Video",
-    "Generate Subtitles",
-    "Video Overview",
-    "Frame-by-Frame Viewer",
-    "Trim Video",
-    "Crop Video",
-    "Add Filter",
-    "Ask Questions About Video",
-]
+# Define available tools based on dependencies
+tools = ["Frame-by-Frame Viewer"]
+
+if COMPRESSOR_AVAILABLE:
+    tools.insert(0, "Compress Video")
+
+if MOVIEPY_AVAILABLE:
+    tools.extend(["Trim Video", "Add Filter"])
 
 if "tool" not in st.session_state:
     st.session_state.tool = tools[0]
@@ -118,9 +124,10 @@ if uploaded_file:
     filename = uploaded_file.name.rsplit(".", 1)[0]
 
     tool = st.session_state.tool
-    if tool == "Compress Video":
+    
+    if tool == "Compress Video" and COMPRESSOR_AVAILABLE:
         st.subheader("📦 Compressing your video")
-        with st.spinner("Compressing using compressor.py logic..."):
+        with st.spinner("Compressing video..."):
             compressed_path = temp_video_path.replace(".mp4", "_compressed.mp4")
             try:
                 compress_video(temp_video_path, compressed_path)
@@ -133,42 +140,6 @@ if uploaded_file:
                     st.error("Compression failed: Output file not created.")
             except Exception as e:
                 st.error(f"Compression failed: {str(e)}")
-
-    elif tool == "Generate Subtitles":
-        st.subheader("📝 Subtitle Generator")
-        language = st.selectbox("Select language (for better accuracy):", ["en", "hi", "es", "fr", "de", "zh"])
-        try:
-            with st.spinner("Loading Whisper model..."):
-                model = whisper.load_model("base")
-            with st.spinner("Transcribing the Video..."):
-                result = model.transcribe(temp_video_path, language=language)
-                subtitle_text = result["text"]
-            st.success("✅ Subtitles generated")
-            st.text_area("Subtitles:", subtitle_text, height=300)
-            st.download_button("⬇️ Download Subtitles", subtitle_text, file_name=filename + "_subtitles.txt")
-        except Exception as e:
-            st.error(f"Subtitle generation failed: {e}")
-
-    elif tool == "Video Overview":
-        st.subheader("🧐 Video Summary")
-        st.info("This feature extracts subtitles and sends them to Gemini API for summarization.")
-        
-        if "GEMINI_API_KEY" not in st.secrets:
-            st.error("Gemini API key not configured. Please add GEMINI_API_KEY to secrets.")
-        else:
-            try:
-                with st.spinner("Analyzing the Video..."):
-                    model = whisper.load_model("base")
-                    result = model.transcribe(temp_video_path)
-                    transcript = result["text"]
-                
-                with st.spinner("Sending to Gemini..."):
-                    gemini_model = genai.GenerativeModel("gemini-2.0-flash-exp")
-                    response = gemini_model.generate_content(f"Summarize this transcript:\n{transcript}")
-                st.success("✅ Summary generated")
-                st.text_area("Gemini Summary:", response.text, height=200)
-            except Exception as e:
-                st.error(f"AI Summary failed: {e}")
 
     elif tool == "Frame-by-Frame Viewer":
         st.subheader("🧡 Frame Viewer")
@@ -190,7 +161,7 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Frame extraction failed: {e}")
 
-    elif tool == "Trim Video":
+    elif tool == "Trim Video" and MOVIEPY_AVAILABLE:
         st.subheader("✂️ Trim Video")
         try:
             video = mp.VideoFileClip(temp_video_path)
@@ -203,7 +174,7 @@ if uploaded_file:
                 trimmed_path = temp_video_path.replace(".mp4", "_trimmed.mp4")
                 with st.spinner("Trimming video..."):
                     trimmed = video.subclip(start_time, end_time)
-                    trimmed.write_videofile(trimmed_path, codec="libx264")
+                    trimmed.write_videofile(trimmed_path, codec="libx264", audio_codec="aac")
                     trimmed.close()
                     st.success("✅ Trim complete")
                     st.video(trimmed_path)
@@ -213,48 +184,9 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Video trimming failed: {e}")
 
-    elif tool == "Crop Video":
-        st.subheader("🖼️ Crop Video")
-        try:
-            st.video(temp_video_path)
-            cap = cv2.VideoCapture(temp_video_path)
-            ret, frame = cap.read()
-            cap.release()
-            
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                image = Image.fromarray(frame)
-                st.image(image, caption="First Frame", use_column_width=True)
-                st.markdown("Specify crop coordinates:")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    x1 = st.number_input("x1", value=0, min_value=0, max_value=image.width-1)
-                    y1 = st.number_input("y1", value=0, min_value=0, max_value=image.height-1)
-                with col2:
-                    x2 = st.number_input("x2", value=image.width, min_value=1, max_value=image.width)
-                    y2 = st.number_input("y2", value=image.height, min_value=1, max_value=image.height)
-
-                if st.button("Crop"):
-                    cropped_path = temp_video_path.replace(".mp4", "_cropped.mp4")
-                    with st.spinner("Cropping video..."):
-                        video = mp.VideoFileClip(temp_video_path)
-                        cropped = video.crop(x1=int(x1), y1=int(y1), x2=int(x2), y2=int(y2))
-                        cropped.write_videofile(cropped_path, codec="libx264")
-                        video.close()
-                        cropped.close()
-                        st.success("✅ Cropping complete")
-                        st.video(cropped_path)
-                        with open(cropped_path, "rb") as f:
-                            st.download_button("⬇️ Download Cropped Video", f, file_name=filename + "_cropped.mp4")
-            else:
-                st.error("Could not read video for cropping preview.")
-        except Exception as e:
-            st.error(f"Video cropping failed: {e}")
-
-    elif tool == "Add Filter":
+    elif tool == "Add Filter" and MOVIEPY_AVAILABLE:
         st.subheader("🎰 Add Video Filter")
-        filter_choice = st.selectbox("Choose filter:", ["Grayscale", "Sepia", "Invert", "Brighten"])
+        filter_choice = st.selectbox("Choose filter:", ["Grayscale", "Invert", "Brighten"])
         
         if st.button("Apply Filter"):
             filtered_path = temp_video_path.replace(".mp4", f"_{filter_choice.lower()}.mp4")
@@ -266,18 +198,10 @@ if uploaded_file:
                         clip = clip.fx(mp.vfx.blackwhite)
                     elif filter_choice == "Invert":
                         clip = clip.fl_image(lambda f: 255 - f)
-                    elif filter_choice == "Sepia":
-                        def sepia(img):
-                            img = np.array(img)
-                            sepia_filter = np.array([[0.393, 0.769, 0.189],
-                                                     [0.349, 0.686, 0.168],
-                                                     [0.272, 0.534, 0.131]])
-                            return np.clip(img.dot(sepia_filter.T), 0, 255).astype(np.uint8)
-                        clip = clip.fl_image(sepia)
                     elif filter_choice == "Brighten":
                         clip = clip.fl_image(lambda f: np.clip(f * 1.2, 0, 255))
 
-                    clip.write_videofile(filtered_path, codec="libx264")
+                    clip.write_videofile(filtered_path, codec="libx264", audio_codec="aac")
                     clip.close()
                     st.success("✅ Filter applied")
                     st.video(filtered_path)
@@ -285,48 +209,7 @@ if uploaded_file:
                         st.download_button("⬇️ Download Filtered Video", f, file_name=filename + f"_{filter_choice.lower()}.mp4")
             except Exception as e:
                 st.error(f"Filter application failed: {e}")
-
-    elif tool == "Ask Questions About Video":
-        st.subheader("💬 Ask Questions About Video")
-
-        if "GEMINI_API_KEY" not in st.secrets:
-            st.error("Gemini API key not configured. Please add GEMINI_API_KEY to secrets.")
-        else:
-            if "video_transcript" not in st.session_state:
-                st.info("Processing the video... this might take a moment.")
-                try:
-                    model = whisper.load_model("base")
-                    with st.spinner("Extracting transcript from the video..."):
-                        result = model.transcribe(temp_video_path)
-                        st.session_state.video_transcript = result["text"]
-                        st.success("✅ Transcript extraction complete.")
-                except Exception as e:
-                    st.error(f"Error while extracting subtitles: {e}")
-                    st.stop()
-
-            transcript = st.session_state.video_transcript
-
-            if "gemini_model" not in st.session_state:
-                try:
-                    st.session_state.gemini_model = genai.GenerativeModel("gemini-2.0-flash-exp")
-                except Exception as e:
-                    st.error(f"Error initializing Gemini model: {e}")
-                    st.stop()
-
-            st.info("Ask a question about the video:")
-            user_question = st.text_input("Your question:")
-
-            if user_question:
-                try:
-                    with st.spinner("Generating answer..."):
-                        response = st.session_state.gemini_model.generate_content(
-                            f"Answer the following question based on the video transcript:\nQuestion: {user_question}\nTranscript:\n{transcript}"
-                        )
-                    st.success("✅ Answer generated.")
-                    st.text_area("Answer:", response.text, height=150)
-                except Exception as e:
-                    st.error(f"Error generating answer: {e}")
-                    
+                
     # Clean up temporary files
     try:
         if os.path.exists(temp_video_path):
@@ -335,6 +218,26 @@ if uploaded_file:
         pass
 else:
     st.info("👈 Upload a video to get started")
+    
+    # Show available features
+    st.markdown("### Available Features:")
+    feature_status = []
+    feature_status.append("✅ Frame-by-Frame Viewer")
+    
+    if COMPRESSOR_AVAILABLE:
+        feature_status.append("✅ Video Compression")
+    else:
+        feature_status.append("❌ Video Compression (compressor.py missing)")
+        
+    if MOVIEPY_AVAILABLE:
+        feature_status.append("✅ Video Trimming")
+        feature_status.append("✅ Video Filters")
+    else:
+        feature_status.append("❌ Video Trimming (MoviePy not available)")
+        feature_status.append("❌ Video Filters (MoviePy not available)")
+    
+    for status in feature_status:
+        st.markdown(status)
 
 st.markdown("---")
 st.markdown("Made with ❤️ using Streamlit")
