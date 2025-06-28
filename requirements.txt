@@ -1,15 +1,7 @@
 streamlit
-google-cloud-storage
-google-cloud-firestore
 ffmpeg-python
 opencv-python-headless
-torch --extra-index-url https://download.pytorch.org/whl/cpu
 Pillow
-git+https://github.com/openai/whisper.git
-moviepy
-streamlit-drawable-canvas
-google-generativeai
 numpy
-matplotlib
-scikit-learn
-librosa
+moviepy
+google-generativeai
