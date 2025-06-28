@@ -5,3 +5,4 @@ numpy
 pandas
 imageio
 imageio-ffmpeg
+openai-whisper
