@@ -1,0 +1,14 @@
+streamlit
+openai
+
+# Video processing — ffmpeg must also be installed on the system
+moviepy
+opencv-python-headless
+
+# Audio transcription
+git+https://github.com/openai/whisper.git
+torch
+
+# Utilities
+Pillow
+numpy

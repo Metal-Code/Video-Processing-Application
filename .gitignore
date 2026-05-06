@@ -1,0 +1,3 @@
+# Ignore GCP service account key
+*.json
+video-compressor-456706-40b9a701cdeb.json
