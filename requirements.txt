@@ -2,7 +2,7 @@ streamlit
 openai
 
 # Video processing — ffmpeg must also be installed on the system
-moviepy
+moviepy==1.0.3
 opencv-python-headless
 
 # Audio transcription
